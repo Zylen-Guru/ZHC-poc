@@ -70,38 +70,105 @@
 // // Run the function to display system information and running processes
 // getSystemAndProcessInfo();
 
+// const express = require('express');
+// const si = require('systeminformation');
+
+// const app = express();
+// const port = 7000;
+// const cors = require('cors');
+// app.use(cors());
+
+// // Route to handle the POST request
+// app.get('/api/run', async (req, res) => {
+//   try {
+//     // Get all processes
+//     const processes = await si.processes();
+    
+//     const processStats = processes.list.map(process => ({
+//       name: process.name,
+//       pid: process.pid,
+//       cpuUsage: `${process.cpu.toFixed(2)}%`,
+//       memoryUsage: `${(process.memRss / (1024 * 1024)).toFixed(2)} MB`, // Memory in MB
+//       diskIO: process.io
+//     }));
+    
+//     // Send process stats as the response
+//     res.json(processStats);
+//   } catch (err) {
+//     console.error('Error fetching process stats:', err);
+//     res.status(500).json({ error: 'Error fetching process stats' });
+//   }
+// });
+
+// // Start the server
+// app.listen(port, () => {
+//   console.log(`Server running at http://localhost:${port}`);
+// });
+
 const express = require('express');
 const si = require('systeminformation');
+const path = require('path');
 
 const app = express();
 const port = 7000;
 const cors = require('cors');
 app.use(cors());
 
-// Route to handle the POST request
+// Serve the static HTML file
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Route to handle the process stats API
+const pm2 = require('pm2');
+
 app.get('/api/run', async (req, res) => {
   try {
-    // Get all processes
+    // Get system process stats
     const processes = await si.processes();
     
-    const processStats = processes.list.map(process => ({
-      name: process.name,
-      pid: process.pid,
-      cpuUsage: `${process.cpu.toFixed(2)}%`,
-      memoryUsage: `${(process.memRss / (1024 * 1024)).toFixed(2)} MB`, // Memory in MB
-      diskIO: process.io
-    }));
+    // Get PM2 metrics
+    pm2.connect((err) => {
+      if (err) {
+        console.error('Error connecting to PM2:', err);
+        return res.status(500).json({ error: 'Failed to connect to PM2' });
+      }
+      
+      pm2.list((err, list) => {
+        if (err) {
+          console.error('Error fetching PM2 stats:', err);
+          return res.status(500).json({ error: 'Failed to fetch PM2 stats' });
+        }
+
+        const processStats = processes.list.map(process => ({
+          name: process.name,
+          pid: process.pid,
+          cpuUsage: `${process.cpu.toFixed(2)}%`,
+          memoryUsage: `${(process.memRss / (1024 * 1024)).toFixed(2)} MB`,
+          diskIO: process.io
+        }));
+        
+        // Combine PM2 process stats with the system process stats
+        const pm2Processes = list.map(pm2Process => ({
+          name: pm2Process.name,
+          pm_id: pm2Process.pm_id,
+          status: pm2Process.pm2_env.status,
+          memory: `${(pm2Process.monit.memory / (1024 * 1024)).toFixed(2)} MB`,
+          cpu: `${pm2Process.monit.cpu}%`,
+        }));
+
+        res.json({ systemProcesses: processStats, pm2Processes });
+        
+        pm2.disconnect();
+      });
+    });
     
-    // Send process stats as the response
-    res.json(processStats);
   } catch (err) {
     console.error('Error fetching process stats:', err);
     res.status(500).json({ error: 'Error fetching process stats' });
   }
 });
 
+
 // Start the server
 app.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
 });
-

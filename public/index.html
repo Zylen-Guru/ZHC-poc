@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Process Statistics</title>
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <h1>Process Statistics</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Process Name</th>
+        <th>PID</th>
+        <th>CPU Usage</th>
+        <th>Memory Usage</th>
+        <th>Disk I/O</th>
+      </tr>
+    </thead>
+    <tbody id="process-table-body">
+      <!-- Data will be injected here -->
+    </tbody>
+  </table>
+
+  <script>
+    // Function to fetch process stats from the API
+    async function fetchProcessStats() {
+      try {
+        const response = await fetch('/api/run');
+        const data = await response.json();
+console.log("data",data)
+        // Get the table body element
+        const tableBody = document.getElementById('process-table-body');
+        tableBody.innerHTML = ''; // Clear existing data
+
+        // Populate the table with the fetched data
+        data.systemProcesses?.forEach(process => {
+          const row = `
+            <tr>
+              <td>${process.name}</td>
+              <td>${process.pid}</td>
+              <td>${process.cpuUsage}</td>
+              <td>${process.memoryUsage}</td>
+              <td>${process.diskIO}</td>
+            </tr>
+          `;
+          tableBody.innerHTML += row;
+        });
+      } catch (error) {
+        console.error('Error fetching process stats:', error);
+      }
+    }
+
+    // Fetch the process stats every 5 seconds
+    setInterval(fetchProcessStats, 5000);
+
+    // Initial fetch on page load
+    fetchProcessStats();
+  </script>
+</body>
+</html>
